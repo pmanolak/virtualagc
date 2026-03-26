@@ -1603,7 +1603,7 @@ def generateObjectCode(source, macros):
                     dataSize = 4
                 else:
                     dataSize = properties["length"]
-                if operation in operation in argsSRSonly:
+                if operation in argsSRSonly:
                     dataSize = 2
                 ast = properties["ast"]
                 literalAttributes = None
