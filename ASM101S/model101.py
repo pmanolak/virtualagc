@@ -727,9 +727,7 @@ def generateObjectCode(source, macros):
     #                   actual bytes to store.
     # Alignment must have been done prior to entry.
     memoryChunkSize = 4096
-    defaultChunk = [0xC9]*memoryChunkSize
-    for i in range(1, memoryChunkSize, 2):
-        defaultChunk[i] = 0xFB
+    defaultChunk = [0x00]*memoryChunkSize
     def toMemory(bytes, alignment = 1):
         nonlocal collect, asis, compile, properties, name, operation
         if sect is None or sect not in sects:
@@ -2134,7 +2132,7 @@ def generateObjectCode(source, macros):
         pass
     
     # Let's append the literal pools to their CSECTs.
-    fill = [0xC9, 0xFB]
+    fill = [0x00, 0x00]
     for pool in literalPools:
         if len(pool) == len(emptyPool):
             continue

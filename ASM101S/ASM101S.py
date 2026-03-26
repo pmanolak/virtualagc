@@ -1172,14 +1172,10 @@ if comparisonSects != None:
                 continue
             if 0 == (address & 1):
                 c = "H"
-                if memory[address] == 0xC9:
-                    continue
                 if address < len(amemory) and memory[address] == amemory[address]:
                     continue
             else:
                 c = "L"
-                if memory[address] == 0xFB:
-                    continue
                 if address < len(amemory) and memory[address] == amemory[address]:
                     continue
             if not headerShown:
