@@ -144,7 +144,7 @@ def writeObjectModule(filename, metadata, symtab, sects, entries, extrns):
             'esdId': nextEsdId,
             'name': sectName or '#MAIN',
             'typeCode': 0x00,  # SD
-            'address': 0,
+            'address': sectData.get('offset', 0) * 2,  # offset is in halfwords, card format uses bytes
             'flags': 0x00,
             'length': sectData.get('used', 0)
         })
@@ -153,14 +153,16 @@ def writeObjectModule(filename, metadata, symtab, sects, entries, extrns):
     # Entry points (LD)
     for entryName in entries:
         if (sym := symtab.get(entryName)):
+            # Find the SD (CSECT) that contains this entry
+            sectName = sym.get('section', '')
+            ldid = esdIdMap.get(sectName, 1)  # Default to first SD
             esdIdMap[entryName] = nextEsdId
             esdItems.append({
                 'esdId': nextEsdId,
                 'name': entryName,
                 'typeCode': 0x01,  # LD
-                'address': sym.get('address', 0) * 2,  # halfword -> byte
-                'flags': 0x00,
-                'length': 0
+                'address': (sym.get('address', 0) + sects.get(sectName, {}).get('offset', 0)) * 2,  # halfwords to bytes
+                'ldid': ldid
             })
             nextEsdId += 1
     
@@ -171,9 +173,6 @@ def writeObjectModule(filename, metadata, symtab, sects, entries, extrns):
             'esdId': nextEsdId,
             'name': extName,
             'typeCode': 0x02,  # ER
-            'address': 0,
-            'flags': 0x00,
-            'length': 0
         })
         nextEsdId += 1
     
