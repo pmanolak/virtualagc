@@ -1522,6 +1522,27 @@ def generateObjectCode(source, macros):
                                 if v == None:
                                     error(properties, "Cannot evaluate Y-type constant")
                                     v = 0
+                                ySect, yOffset = unhash(v)
+                                if ySect is not None and passCount == 3:
+                                    combinedOffset = yOffset + sects.get(ySect, {}).get("offset", 0)
+                                    # Resolve actual CSECT from combined offset
+                                    rldSymbol = ySect
+                                    for sn, sd in sects.items():
+                                        if sd.get("dsect") or "offset" not in sd:
+                                            continue
+                                        so = sd["offset"]
+                                        su = sd["used"] // 2
+                                        if combinedOffset >= so and combinedOffset < so + su and sn != sect:
+                                            rldSymbol = sn
+                                            break
+                                    yAddr = sects[sect]["pos1"] + dcBufferPtr
+                                    relocations.append({
+                                        'symbol': rldSymbol,
+                                        'section': sect,
+                                        'address': yAddr,
+                                        'type': 'Y'
+                                    })
+                                    v = combinedOffset
                                 dcBuffer[dcBufferPtr] = (v >> 8) & 0xFF
                                 dcBufferPtr += 1
                                 dcBuffer[dcBufferPtr] = v & 0xFF
@@ -1870,6 +1891,14 @@ def generateObjectCode(source, macros):
                                                 d1 > -2048 and d1 < 0:
                                             if extrnD2:
                                                 data = generateRS0(properties, operation, r1, 0, 3)
+                                                if passCount == 3:
+                                                    rldAddr = sects[sect]["pos1"] + 2  # byte offset of displacement field
+                                                    relocations.append({
+                                                        'symbol': rextrns[originalD2],
+                                                        'section': sect,
+                                                        'address': rldAddr,
+                                                        'type': 'Y'
+                                                    })
                                             else:
                                                 data = generateRS1(properties, operation, 0, 1, r1, 0x3FF & -d1, 0, ib2)
                                         elif not forceAM0 and \
@@ -1897,12 +1926,37 @@ def generateObjectCode(source, macros):
                                             elif d2 in rextrns:
                                                 b2 = 3
                                                 d0 = 0
+                                                if passCount == 3:
+                                                    rldAddr = sects[sect]["pos1"] + 2  # byte offset of displacement field
+                                                    relocations.append({
+                                                        'symbol': rextrns[d2],
+                                                        'section': sect,
+                                                        'address': rldAddr,
+                                                        'type': 'Y'
+                                                    })
                                             else:
                                                 section, offset = unhash(d2)
                                                 if section in sects and \
                                                         "offset" in sects[section]:
-                                                    d0 = offset # + sects[section]["offset"] - sects[sect]["offset"]
+                                                    d0 = offset + sects[section].get("offset", 0) - sects[sect].get("offset", 0)
                                                     b2 = 3
+                                                    if passCount == 3:
+                                                        rldSymbol = section
+                                                        for sn, sd in sects.items():
+                                                            if sd.get("dsect") or "offset" not in sd:
+                                                                continue
+                                                            so = sd["offset"]
+                                                            su = sd["used"] // 2
+                                                            if d0 >= so and d0 < so + su and sn != sect:
+                                                                rldSymbol = sn
+                                                                break
+                                                        rldAddr = sects[sect]["pos1"] + 2
+                                                        relocations.append({
+                                                            'symbol': rldSymbol,
+                                                            'section': sect,
+                                                            'address': rldAddr,
+                                                            'type': 'Y'
+                                                        })
                                                 if b2 == None:
                                                     error(properties, "Could not interpret operand")
                                                     continue

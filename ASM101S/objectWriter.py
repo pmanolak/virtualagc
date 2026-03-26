@@ -177,12 +177,30 @@ def writeObjectModule(filename, metadata, symtab, sects, entries, extrns):
         nextEsdId += 1
     
     # Build RLD entries
-    rldEntries = [
-        {'relId': esdIdMap[r['symbol']], 'posId': esdIdMap[r['section']],
-         'flags': 0x1C, 'address': r.get('address', 0)}  # 0x1C = 4-byte address constant
-        for r in metadata.get('relocations', [])
-        if r.get('symbol') in esdIdMap and r.get('section') in esdIdMap
-    ]
+    rldEntries = []
+    for r in metadata.get('relocations', []):
+        if r.get('symbol') not in esdIdMap or r.get('section') not in esdIdMap:
+            continue
+        # Determine RLD flags based on relocation type
+        if r.get('type') == 'Z':
+            # ZCON uses flag byte 0x04 (2-byte address relocation, no negation)
+            # Note: The AP-101S object format spec documents ZCON flags as
+            # 0x20/0x40/0x50, not 0x04.  Flag 0x04 works with the current
+            # LNK101S because it falls through to the 2-byte length case,
+            # but may not match the documented AP-101S flag encoding.
+            rldFlags = 0x04
+        elif r.get('type') == 'Y':
+            # YCON: halfword address relocation
+            rldFlags = 0x00
+        else:
+            # Standard 4-byte address constant
+            rldFlags = 0x1C
+        rldEntries.append({
+            'relId': esdIdMap[r['symbol']],
+            'posId': esdIdMap[r['section']],
+            'flags': rldFlags,
+            'address': r.get('address', 0)
+        })
     
     with open(filename, 'wb') as f:
         seqNum = 1
