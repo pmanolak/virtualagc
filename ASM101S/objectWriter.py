@@ -17,9 +17,10 @@ def toEbcdic(s, length=8):
 
 def be16(val): return val.to_bytes(2, 'big')
 def be24(val): return val.to_bytes(3, 'big')
+def blanks(n): return bytearray([0x40] * n)  # EBCDIC blanks
 
 def makeCard(recType, data, seqNum):
-    card = bytearray(80)
+    card = blanks(80)
     card[0] = 0x02
     card[1:4] = toEbcdic(recType, 3)
     card[4:4+min(len(data), 68)] = data[:68]
@@ -27,12 +28,20 @@ def makeCard(recType, data, seqNum):
     return card
 
 def writeESD(f, esdItems, seqNum):
-    """Write ESD (External Symbol Dictionary) records. Up to 3 items per card."""
+    """Write ESD (External Symbol Dictionary) records. Up to 3 items per card.
+
+    ESD entry format (16 bytes per entry):
+      - bytes 0-7: Symbol name (EBCDIC, blank-padded)
+      - byte 8: Type code (0=SD, 1=LD, 2=ER, 3=PC, 4=CM, 5=XD/PR, 6=WX)
+      - bytes 9-11: Address (3 bytes, big-endian)
+      - byte 12: For SD/PC/CM = AMODE/RMODE flags; for ER/LD/WX = blank (0x40)
+      - bytes 13-15: For SD/PC/CM = length; for LD = [0x40, LDID]; for ER/WX = blank
+    """
     items = list(esdItems)
     for i in range(0, len(items), 3):
         batch = items[i:i+3]
-        
-        data = bytearray(68)
+
+        data = blanks(68)
         data[6:8] = be16(len(batch) * 16)
         data[10:12] = be16(batch[0]['esdId'])
         
@@ -41,8 +50,20 @@ def writeESD(f, esdItems, seqNum):
             data[o:o+8] = toEbcdic(item['name'], 8)
             data[o+8] = item['typeCode']
             data[o+9:o+12] = be24(item.get('address', 0))
-            data[o+12] = item.get('flags', 0)
-            data[o+13:o+16] = be24(item.get('length', 0))
+
+            typeCode = item['typeCode']
+            if typeCode == 0x01:  # LD (Label Definition)
+                data[o+12] = 0x40  # Flags: blank
+                # Length field: [0x40, LDID high, LDID low]
+                ldid = item.get('ldid', 0)
+                data[o+13] = 0x40
+                data[o+14:o+16] = be16(ldid)
+            elif typeCode == 0x02 or typeCode == 0x06:  # ER or WX
+                data[o+12] = 0x40  # Flags: blank
+                data[o+13:o+16] = bytearray([0x40, 0x40, 0x40])  # Length: blank
+            else:  # SD, PC, CM, XD
+                data[o+12] = item.get('flags', 0)
+                data[o+13:o+16] = be24(item.get('length', 0))
         
         f.write(makeCard("ESD", data, seqNum))
         seqNum += 1
@@ -53,8 +74,8 @@ def writeTXT(f, esdId, address, data, seqNum):
     """Write TXT records. Up to 56 bytes of object code per card."""
     for offset in range(0, len(data), 56):
         chunk = data[offset:offset+56]
-        
-        cardData = bytearray(68)
+
+        cardData = blanks(68)
         cardData[1:4] = be24(address + offset)
         cardData[6:8] = be16(len(chunk))
         cardData[10:12] = be16(esdId)
@@ -73,7 +94,7 @@ def writeRLD(f, relocations, seqNum):
     for i in range(0, len(relocations), 7):
         batch = relocations[i:i+7]
         
-        cardData = bytearray(68)
+        cardData = blanks(68)
         cardData[6:8] = be16(len(batch) * 8)
         
         for j, reloc in enumerate(batch):
@@ -89,12 +110,24 @@ def writeRLD(f, relocations, seqNum):
     return seqNum
 
 def writeEND(f, entryEsdId=None, entryAddr=None, ident="ASM101S", seqNum=1):
-    """Write END record with optional entry point and assembler identification."""
-    cardData = bytearray(68)
-    cardData[1:4] = be24(entryAddr) if entryAddr is not None else b'\x40\x40\x40'
+    """Write END record with optional entry point and assembler identification.
+
+    Format:
+    - Bytes 1-3: Entry address
+    - Bytes 10-11: ESD ID of entry point
+    - Byte 32: IDR type (blank=no IDR, F1=type 1, F2=type 2)
+    - Bytes 33-51: Translator identification (if IDR present)
+    - Bytes 52-70: Processor identification (if IDR present)
+    """
+    cardData = blanks(68)
+    cardData[1:4] = be24(entryAddr) if entryAddr is not None else bytearray([0x40, 0x40, 0x40])
     if entryEsdId is not None:
         cardData[10:12] = be16(entryEsdId)
-    cardData[28:68] = toEbcdic(ident, 40)
+    # Byte 32 = IDR type, blank means no IDR data
+    cardData[32] = 0x40
+    # Put translator ident at bytes 33-51 if provided (19 chars)
+    if ident:
+        cardData[33:52] = toEbcdic(ident, 19)
     f.write(makeCard("END", cardData, seqNum))
     return seqNum + 1
 
