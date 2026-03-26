@@ -732,10 +732,9 @@ def generateObjectCode(source, macros):
         defaultChunk[i] = 0xFB
     def toMemory(bytes, alignment = 1):
         nonlocal collect, asis, compile, properties, name, operation
-        try:
-            pos1 = sects[sect]["pos1"]
-        except: ###DEBUG###TRAP###
-            pass
+        if sect is None or sect not in sects:
+            return
+        pos1 = sects[sect].get("pos1", 0)
         if collect:
             if operation == "DS": ###DEBUG###
                 pass
@@ -996,10 +995,9 @@ def generateObjectCode(source, macros):
                     symtab[sect]["references"] = []
                 symtab[sect]["references"].append(properties["n"])
             continue
-        try: 
-            pos1 = sects[sect]["pos1"]
-        except: ###DEBUG###
-            pass
+        if sect is None or sect not in sects:
+            continue
+        pos1 = sects[sect].get("pos1", 0)
         sects[sect]["pos1"] = pos1 + 4
         symtab[name] = { "section": sect,  "address": pos1,
                          "value": symtab[sect]["value"] + pos1,
@@ -1257,6 +1255,9 @@ def generateObjectCode(source, macros):
             # is really referring to suboperands beyond the first suboperand
             # when a single `DC` or `DS` has multiple suboperands in its 
             # operand.  Regardless, we should align to the halfword now.
+            if sect is None or sect not in sects:
+                error(properties, "Instruction outside of control section (undefined macro '%s'?)" % operation)
+                continue
             sects[sect]["pos1"] += sects[sect]["pos1"] & 1
             
             #******** Process instruction ********
