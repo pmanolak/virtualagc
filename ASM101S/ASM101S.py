@@ -729,6 +729,9 @@ for parm in sys.argv[1:]:
         svGlobals["&SYSPARM"] = parm[10:]
     elif parm.startswith("--tolerable="):
         tolerableSeverity = int(parm[12:])
+    elif parm.startswith("--fill="):
+        val = int(parm[7:], 16)
+        fillPattern[:] = [(val >> 8) & 0xFF, val & 0xFF]
     elif parm.startswith("--compare="):
         comparisonFile = parm[10:]
         comparisonSects = readListing(comparisonFile)
@@ -774,6 +777,8 @@ for parm in sys.argv[1:]:
         print("--compare=F         (Default none.) Specifies the name of an")
         print("                    assembly-listing file whose generated code")
         print("                    is compared to the current assembly.")
+        print("--fill=XXXX         Set the fill pattern for uninitialized")
+        print("                    locations. 0x0000 by default. (alt. 0xc6c6 or 0xc9fb)")
         print()
         sys.exit(1)
     else:

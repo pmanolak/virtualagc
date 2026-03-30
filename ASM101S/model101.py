@@ -261,6 +261,7 @@ def unUsing(using, hashed):
 
 ap101 = True
 system390 = False
+fillPattern = [0x00, 0x00]  # Uninitialized memory fill; set via --fill
 
 from model101tables import *
 
@@ -727,7 +728,7 @@ def generateObjectCode(source, macros):
     #                   actual bytes to store.
     # Alignment must have been done prior to entry.
     memoryChunkSize = 4096
-    defaultChunk = [0x00]*memoryChunkSize
+    defaultChunk = [fillPattern[i & 1] for i in range(memoryChunkSize)]
     def toMemory(bytes, alignment = 1):
         nonlocal collect, asis, compile, properties, name, operation
         if sect is None or sect not in sects:
@@ -2186,7 +2187,7 @@ def generateObjectCode(source, macros):
         pass
     
     # Let's append the literal pools to their CSECTs.
-    fill = [0x00, 0x00]
+    fill = list(fillPattern)
     for pool in literalPools:
         if len(pool) == len(emptyPool):
             continue
