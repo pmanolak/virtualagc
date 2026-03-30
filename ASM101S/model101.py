@@ -1299,7 +1299,67 @@ def generateObjectCode(source, macros):
                     except:
                         error(properties, "Suboperand type not specified")
                         continue
-                    if suboperand["l"] == []:
+
+                    # Z type has a different field layout (z/f, not l/v) -
+                    # handle it before common l/v processing.
+                    if suboperandType == "Z":
+                        # ZCons: DC Z(symbol,,flags)
+                        # Format: 4 bytes, fullword-aligned
+                        # Creates an external reference with relocation
+                        commonProcessing(4)
+                        if operation == "DC":
+                            # Get the symbol name from the 'z' field
+                            symbolName = suboperand.get('z')
+                            flags = 0
+                            if 'f' in suboperand and suboperand['f'] is not None:
+                                flags = evalArithmeticExpression(suboperand['f'], {},
+                                                                 properties, symtab,
+                                                                 currentHash())
+                                if flags is None:
+                                    flags = 0
+
+                            if symbolName:
+                                # Add to externs if not already declared
+                                if symbolName not in symtab:
+                                    extrns.add(symbolName)
+                                    symtab[symbolName] = {
+                                        "type": "EXTERNAL",
+                                        "value": getHashcode(symbolName)
+                                    }
+                                    rextrns[symtab[symbolName]["value"]] = symbolName
+                                elif symtab[symbolName].get("type") != "EXTERNAL":
+                                    if symbolName not in extrns:
+                                        extrns.add(symbolName)
+
+                                if passCount == 3:
+                                    pos1 = sects[sect]["pos1"]
+                                    relocations.append({
+                                        'symbol': symbolName,
+                                        'section': sect,
+                                        'address': pos1,
+                                        'flags': flags,
+                                        'type': 'Z'
+                                    })
+
+                            # emit 4 bytes: [0, 0, flags, 0]
+                            # Bytes 0-1: Address (filled by linker)
+                            # Byte 2: Flags
+                            # Byte 3: Reserved
+                            dcBuffer[dcBufferPtr] = 0
+                            dcBufferPtr += 1
+                            dcBuffer[dcBufferPtr] = 0
+                            dcBufferPtr += 1
+                            dcBuffer[dcBufferPtr] = flags & 0xFF
+                            dcBufferPtr += 1
+                            dcBuffer[dcBufferPtr] = 0
+                            dcBufferPtr += 1
+                            toMemory(dcBuffer[:dcBufferPtr])
+                        else:
+                            # DS Z - just reserve 4 bytes
+                            toMemory(duplicationFactor * 4)
+                        continue
+
+                    if suboperand.get("l", []) == []:
                         lengthModifier = None
                     else:
                         lengthModifier = \
@@ -1308,7 +1368,7 @@ def generateObjectCode(source, macros):
                         if lengthModifier == None:
                             error(properties, "Could not evaluate length modifier")
                             continue
-                    astValue = suboperand["v"]
+                    astValue = suboperand.get("v")
                     if suboperandType == "C":
                         commonProcessing(1)
                         
