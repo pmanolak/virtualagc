@@ -9,6 +9,31 @@ This guide covers deploying VirtualAGC using Docker and Docker Compose.
 - At least 2GB available RAM
 - Port 6080 and 5900 available on the host
 
+## Platform Support
+
+Docker scripts are tested and working on:
+
+| Platform | Architectures | Notes |
+|----------|---------------|-------|
+| Windows | WSL2, Native | WSL2 recommended for best performance |
+| macOS | arm64 (Apple Silicon), x86_64 (Intel) | Tested on macOS 15 (Tahoe) and later |
+| Linux | x86_64, arm64 | Ubuntu 22.04+ and other modern distros |
+
+## Quick Start (No Full Clone Required)
+
+The Docker deployment does **not** require cloning the full VirtualAGC repository. The container build process will clone and compile VirtualAGC automatically.
+
+Simply download or clone just the `Docker` directory contents and run:
+
+```bash
+# Using Docker Compose
+docker-compose up -d
+
+# Or using Docker directly
+docker build -t virtualagc .
+docker run -d -p 6080:6080 -p 5900:5900 --name apollo11-demo virtualagc
+```
+
 ## Deployment Methods
 
 ### Method 1: Using Docker Compose (Recommended)
@@ -48,6 +73,20 @@ This guide covers deploying VirtualAGC using Docker and Docker Compose.
    ```
 
 ## Configuration
+
+### VNC Resolution
+
+The VNC screen resolution is configured in the `start.sh` script. To change it, modify this line:
+
+```bash
+Xvfb :1 -screen 0 1600x900x24 &
+```
+
+Change `1600x900x24` to your desired resolution (width x height x bit depth). Common values:
+- `1920x1080x24` - Full HD
+- `1280x720x24` - HD
+- `2560x1440x24` - QHD
+- `1024x768x24` - Standard
 
 ### Environment Variables
 
@@ -235,6 +274,16 @@ deploy:
       cpus: '1.0'
       memory: 1G
 ```
+
+## Script Execution Validation
+
+To ensure the Docker scripts work without boundaries:
+
+1. **Verify file permissions**: Ensure `start.sh` and `docker-compose.yml` have proper read/execute permissions
+2. **Check disk space**: At least 5GB free space for Docker image build
+3. **Network access**: Ensure outbound connections to GitHub (for cloning VirtualAGC during build)
+4. **Docker limits**: Default Docker memory limits may need adjustment on macOS/Windows:
+   - Docker Desktop: Settings → Resources → Memory (recommended: 4GB+)
 
 ## Backup and Recovery
 
