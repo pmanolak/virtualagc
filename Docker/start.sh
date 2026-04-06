@@ -8,7 +8,7 @@ Xvfb :1 -screen 0 1600x900x24 &
 export DISPLAY=:1
 
 fluxbox &
-x11vnc -display :1 -nopw -forever -shared &
+x11vnc -display :1 -nopw -forever -shared -ncache 10 -noxdamage &
 websockify --web=/usr/share/novnc/ 6080 localhost:5900 &
 
 sleep 5
@@ -23,7 +23,7 @@ SRC="/opt/virtualagc/VirtualAGC/temp/lVirtualAGC"
 DST="/opt/virtualagc-dist"
 
 if [ ! -d "$SRC" ]; then
-  echo "❌ ERROR: $SRC exist?"
+  echo "❌ ERROR: $SRC does not exist"
   exit 1
 fi
 
@@ -38,11 +38,22 @@ ls -lah "$DST/bin"
 
 ### Patch
 
-echo "🔧 Patching SimStop..."
+echo "🔧 Validating SimStop..."
 
 SIMSTOP_PATH=$(find /opt/virtualagc-dist -name SimStop | head -n 1)
 
-cat > "$SIMSTOP_PATH" << 'EOF'
+if [ -z "$SIMSTOP_PATH" ]; then
+  echo "❌ SimStop not found"
+  exit 1
+fi
+
+echo "📍 SimStop found at: $SIMSTOP_PATH"
+
+# Check if this is the legacy version
+if grep -q "ps -U" "$SIMSTOP_PATH"; then
+  echo "⚠️ Legacy version detected. Applying patch..."
+
+  cat > "$SIMSTOP_PATH" << 'EOF'
 #!/bin/bash
 trap "" 0 1 2 9 15 17 19 23
 sleep 5
@@ -70,7 +81,13 @@ for n in ${PIDS}; do
 done
 EOF
 
-chmod +x "$SIMSTOP_PATH"
+  chmod +x "$SIMSTOP_PATH"
+
+  echo "✅ Patch applied successfully"
+
+else
+  echo "✅ SimStop is already up-to-date. No patch needed."
+fi
 
 ### End patch
 
